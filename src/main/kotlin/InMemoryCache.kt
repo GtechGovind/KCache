@@ -53,9 +53,7 @@ class InMemoryCache<K, V>(
      * @param value The value associated with the key.
      */
     override fun put(key: K, value: V) {
-        if (cache.size >= maxSize) {
-            evictOldest()
-        }
+        if (cache.size >= maxSize) evictOldest()
         cache[key] = CacheItem(value, System.currentTimeMillis(), System.currentTimeMillis())
         logger?.invoke("Item added to cache with key: $key")
     }
@@ -210,4 +208,5 @@ class InMemoryCache<K, V>(
             }
         }
     }
+
 }

@@ -88,17 +88,17 @@ dependencies {
 
 ### **Cache Operations**
 
-| Function                   | Description                                                        |
-|----------------------------|--------------------------------------------------------------------|
-| `put(key, value)`          | Adds or updates an entry synchronously.                          |
-| `putAsync(key, value)`     | Adds or updates an entry asynchronously.                         |
-| `get(key)`                 | Retrieves an entry synchronously.                                |
-| `getAsync(key)`            | Retrieves an entry asynchronously.                               |
-| `remove(key)`              | Removes a specific entry.                                        |
-| `clear()`                  | Clears all entries in the cache.                                 |
-| `withCache(key, block)`    | Retrieves or computes and caches the value synchronously.        |
-| `withCacheAsync(key, block)` | Retrieves or computes and caches the value asynchronously.        |
-| `stopCleanup()`            | Stops automatic cleanup of expired entries.                     |
+| Function                     | Description                                                |
+|------------------------------|------------------------------------------------------------|
+| `put(key, value)`            | Adds or updates an entry synchronously.                    |
+| `putAsync(key, value)`       | Adds or updates an entry asynchronously.                   |
+| `get(key)`                   | Retrieves an entry synchronously.                          |
+| `getAsync(key)`              | Retrieves an entry asynchronously.                         |
+| `remove(key)`                | Removes a specific entry.                                  |
+| `clear()`                    | Clears all entries in the cache.                           |
+| `withCache(key, block)`      | Retrieves or computes and caches the value synchronously.  |
+| `withCacheAsync(key, block)` | Retrieves or computes and caches the value asynchronously. |
+| `stopCleanup()`              | Stops automatic cleanup of expired entries.                |
 
 ---
 
