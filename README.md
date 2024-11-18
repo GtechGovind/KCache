@@ -1,211 +1,213 @@
-Here’s a `README.md` file that explains every aspect of the `KCache` class, its usage, configuration options, and functionality:
+
+# KCache: Lightweight In-Memory Cache with TTL, Eviction, and Async Access
+
+`KCache` is a lightweight, high-performance, thread-safe, in-memory caching solution tailored for small-scale caching needs. It is designed for applications requiring low-latency access to frequently used data, with built-in **time-to-live (TTL)**, **least recently used (LRU)** eviction, and **asynchronous operations** using Kotlin coroutines.
+
+Ideal for use cases such as caching configurations, API responses, or temporary session data, `KCache` emphasizes simplicity, efficiency, and developer-friendliness while keeping memory usage manageable for small caches.
 
 ---
 
-# KCache: In-Memory Cache with Expiration, Eviction, and Asynchronous Access
+## **Why KCache?**
 
-`KCache` is a thread-safe, high-performance in-memory cache that supports expiration, eviction, and asynchronous access. It uses a Least Recently Used (LRU) eviction policy and can periodically clean up expired items to keep the cache optimized. The cache supports both synchronous and asynchronous operations, making it suitable for real-time applications where high performance and memory management are critical.
+### **Limitations of Other Caching Libraries**
 
-## Features
+While popular caching libraries like **Caffeine**, **Guava**, and **Ehcache** are robust, they often come with significant memory overhead and are optimized for large-scale applications. These libraries:
+- Prioritize scalability for thousands or millions of keys.
+- Often require complex configurations.
+- May introduce dependencies unsuitable for lightweight projects.
 
-- **TTL (Time-To-Live):** Items in the cache can expire based on a configurable TTL.
-- **Eviction Policy:** Uses LRU (Least Recently Used) to evict items when the cache exceeds the maximum size.
-- **Automatic Cleanup:** Supports periodic cleanup of expired items, configurable via the builder.
-- **Debugging:** Optional debug logging to track cache status, memory usage, and item access.
-- **Asynchronous Access:** Cache operations can be performed asynchronously using Kotlin coroutines for non-blocking calls.
+### **Motivation to Build KCache**
 
-## Table of Contents
+The goal of `KCache` was to create a **focused solution** for smaller applications or components needing:
+1. A lightweight, **low-overhead** caching mechanism.
+2. **TTL-based expiration** for time-sensitive data.
+3. Basic **LRU eviction** for memory control.
+4. Asynchronous operations with minimal blocking.
+5. Simplicity and ease of integration.
 
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Cache Operations](#cache-operations)
-- [Debugging](#debugging)
-- [Custom Callbacks](#custom-callbacks)
-- [Cleanup and Eviction](#cleanup-and-eviction)
-- [CacheBuilder](#cachebuilder)
+`KCache` delivers these features in a minimalistic package, designed to **"do one thing and do it well."**
 
-## Installation
+---
 
-Add the cache library to your project by including the following dependency in your `build.gradle` (if using Gradle):
+## **Installation**
 
-```gradle
-implementation "com.gtech.client:KCache:1.0"
-```
+### **Using JitPack**
 
-## Usage
+`KCache` is hosted on [JitPack](https://jitpack.io). Add the JitPack repository to your project.
 
-Here’s how to initialize and use the `KCache` class:
+#### **For Gradle (Groovy)**
 
-### Initialize the Cache
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
 
-You can configure the cache using the builder pattern.
-
-```kotlin
-val cache = KCache.CacheBuilder<String, String>()
-    .ttlMillis(60000L)                 // Time-to-live: 60 seconds
-    .maxSize(100)                      // Max size: 100 items
-    .cleanupIntervalMillis(10000L)     // Cleanup interval: 10 seconds
-    .enableAutoCleanup(true)           // Enable auto cleanup
-    .debugCallback { println(it) }     // Enable debug logging
-    .evictionCallback { key, value ->  // Callback when item is evicted
-        println("Evicted: $key -> $value")
-    }
-    .build()
-```
-
-### Cache Operations
-
-Once the cache is built, you can perform various operations like adding, retrieving, and removing items.
-
-#### Putting Items into the Cache
-
-You can store items in the cache using the `put()` or `putAsync()` methods:
-
-```kotlin
-cache.put("key1", "value1")
-cache.putAsync("key2", "value2")
-```
-
-#### Getting Items from the Cache
-
-To retrieve items from the cache, use the `get()` or `getAsync()` methods:
-
-```kotlin
-val value = cache.get("key1")
-val asyncValue = cache.getAsync("key2")
-```
-
-#### Removing Items from the Cache
-
-To remove an item from the cache, use the `remove()` method:
-
-```kotlin
-cache.remove("key1")
-```
-
-#### Clearing the Cache
-
-To clear all items from the cache:
-
-```kotlin
-cache.clear()
-```
-
-## Configuration
-
-You can configure various aspects of the cache during initialization via the `CacheBuilder`:
-
-- **ttlMillis (Long):** The time-to-live for cache entries in milliseconds. Items older than this will be considered expired. Default is `60000L` (60 seconds).
-- **maxSize (Int):** The maximum number of items the cache can hold. When this limit is exceeded, the least recently used (LRU) item will be evicted. Default is `100`.
-- **cleanupIntervalMillis (Long):** The interval in milliseconds between cleanup operations to remove expired items. Default is `10000L` (10 seconds).
-- **enableAutoCleanup (Boolean):** Flag to enable or disable automatic periodic cleanup of expired items. Default is `true`.
-- **logger (Optional Callback):** A debug callback function that will be called to log cache status, like when items are added, removed, or evicted. It accepts a `String` parameter.
-- **evictionCallback (Optional Callback):** A callback function that will be triggered when an item is evicted due to size limits. It accepts the key and value of the evicted item.
-
-## Cache Operations
-
-### Put
-
-You can add items to the cache either synchronously (`put()`) or asynchronously (`putAsync()`):
-
-```kotlin
-cache.put("key1", "value1")
-cache.putAsync("key2", "value2")
-```
-
-### Get
-
-You can retrieve cached items either synchronously (`get()`) or asynchronously (`getAsync()`):
-
-```kotlin
-val value = cache.get("key1")
-val asyncValue = cache.getAsync("key2")
-```
-
-### Remove
-
-To remove an item from the cache:
-
-```kotlin
-cache.remove("key1")
-```
-
-### Clear
-
-To clear all items from the cache:
-
-```kotlin
-cache.clear()
-```
-
-## Debugging
-
-To track cache usage, you can enable the `debugCallback` to log cache-related events:
-
-```kotlin
-cache.debugCacheUsage()
-```
-
-This will output information about the cache size, the last accessed time of each item, and other internal states.
-
-## Custom Callbacks
-
-### Eviction Callback
-
-You can configure an `evictionCallback` to handle when an item is evicted due to reaching the maximum cache size:
-
-```kotlin
-cache.evictionCallback { key, value ->
-    println("Evicted item: $key -> $value")
+dependencies {
+    implementation 'com.github.username:KCache:1.0.0'
 }
 ```
 
-### Debug Callback
-
-Use the `debugCallback` to log cache activities like adding/removing items and eviction events:
+#### **For Gradle (Kotlin DSL)**
 
 ```kotlin
-cache.debugCallback { message ->
-    println(message)
+repositories {
+    maven("https://jitpack.io")
+}
+
+dependencies {
+    implementation("com.github.username:KCache:1.0.0")
 }
 ```
 
-## Cleanup and Eviction
+---
 
-### Automatic Cleanup
+## **Core Features**
 
-You can enable periodic cleanup of expired cache items by setting the `enableAutoCleanup` flag to `true`. This will run a background coroutine that cleans up expired items at the specified `cleanupIntervalMillis`.
+### **Lightweight Design**
+- Small memory footprint, ideal for applications requiring a compact cache.
+- Supports caches up to a few thousand keys efficiently.
 
-To stop the automatic cleanup:
+### **TTL and Expiration**
+- Automatically expires entries after the specified `ttlMillis`.
 
-```kotlin
-cache.stopCleanup()
-```
+### **LRU Eviction**
+- Evicts the least recently used entries when the cache exceeds its maximum size.
 
-### LRU Eviction
+### **Asynchronous Support**
+- Provides `suspend` functions for non-blocking cache interactions.
 
-When the cache exceeds its maximum size (`maxSize`), it will automatically evict the least recently used item to make room for new items. The eviction callback will be triggered in this case.
+### **Periodic Cleanup**
+- Removes expired entries periodically to optimize memory usage.
 
-## CacheBuilder
+### **Debug and Eviction Callbacks**
+- Hooks to monitor cache operations and handle evictions.
 
-The `CacheBuilder` class provides a fluent API for configuring the cache:
+---
+
+## **API Overview**
+
+### **Cache Operations**
+
+| Function                   | Description                                                        |
+|----------------------------|--------------------------------------------------------------------|
+| `put(key, value)`          | Adds or updates an entry synchronously.                          |
+| `putAsync(key, value)`     | Adds or updates an entry asynchronously.                         |
+| `get(key)`                 | Retrieves an entry synchronously.                                |
+| `getAsync(key)`            | Retrieves an entry asynchronously.                               |
+| `remove(key)`              | Removes a specific entry.                                        |
+| `clear()`                  | Clears all entries in the cache.                                 |
+| `withCache(key, block)`    | Retrieves or computes and caches the value synchronously.        |
+| `withCacheAsync(key, block)` | Retrieves or computes and caches the value asynchronously.        |
+| `stopCleanup()`            | Stops automatic cleanup of expired entries.                     |
+
+---
+
+## **Detailed API Usage**
+
+### **Initialization**
+
+Create a cache instance using the `CacheBuilder`:
 
 ```kotlin
 val cache = KCache.CacheBuilder<String, String>()
-    .ttlMillis(60000L)
-    .maxSize(100)
-    .cleanupIntervalMillis(10000L)
-    .enableAutoCleanup(true)
-    .debugCallback { println(it) }
+    .ttlMillis(60000L)                 // 1-minute TTL
+    .maxSize(100)                      // Max size of 100 entries
+    .cleanupIntervalMillis(10000L)     // Cleanup expired items every 10 seconds
+    .enableAutoCleanup(true)           // Enable automatic cleanup
+    .debugCallback { println(it) }     // Debugging logs
     .evictionCallback { key, value -> println("Evicted: $key -> $value") }
     .build()
 ```
 
-The `CacheBuilder` allows you to customize all aspects of the cache configuration. Use it to create a cache instance with specific settings.
+### **Adding and Retrieving Items**
+
+#### Synchronous Operations
+```kotlin
+cache.put("key1", "value1")
+val value = cache.get("key1")
+```
+
+#### Asynchronous Operations
+```kotlin
+cache.putAsync("key2", "value2")
+val valueAsync = cache.getAsync("key2")
+```
+
+### **WithCache and WithCacheAsync**
+
+#### **`withCache`**
+Ensures the value is cached or computes it on demand:
+```kotlin
+val value = cache.withCache("key1") {
+    // Compute value if not in cache
+    "computedValue"
+}
+```
+
+#### **`withCacheAsync`**
+Async variant of `withCache`:
+```kotlin
+val valueAsync = cache.withCacheAsync("key2") {
+    // Compute value asynchronously if not in cache
+    delay(100) // Simulate computation
+    "asyncComputedValue"
+}
+```
 
 ---
 
-## Conclusion
+## **Advanced Configuration**
 
-`KCache` is a flexible, high-performance caching solution designed for concurrent environments. It is ideal for use cases requiring fast, memory-efficient, and time-sensitive caching operations. By using the builder pattern, you can easily customize the cache behavior to suit your needs, whether you're handling large volumes of data, implementing a time-sensitive cache, or managing resource-constrained environments.
+### **Eviction Callback**
+```kotlin
+cache.evictionCallback { key, value ->
+    println("Evicted: $key -> $value")
+}
+```
+
+### **Debugging**
+```kotlin
+cache.debugCallback { message ->
+    println("Cache Event: $message")
+}
+```
+
+### **Automatic Cleanup**
+Enable or disable automatic cleanup of expired items:
+```kotlin
+cache.stopCleanup() // Disable cleanup
+```
+
+---
+
+## **Periodic Cleanup**
+
+`KCache` runs a background job (if enabled) to clean expired entries periodically. This helps reduce memory usage without needing manual intervention.
+
+```kotlin
+val cache = KCache.CacheBuilder<String, String>()
+    .enableAutoCleanup(true)
+    .cleanupIntervalMillis(5000L) // Cleanup every 5 seconds
+    .build()
+```
+
+Stop cleanup:
+```kotlin
+cache.stopCleanup()
+```
+
+---
+
+## **Why Use KCache?**
+
+1. **Simplicity:** Minimal learning curve with easy-to-understand APIs.
+2. **Small Memory Footprint:** Perfect for applications requiring small caches.
+3. **Customizable:** Configure TTL, eviction policies, and hooks.
+4. **Lightweight:** Ideal for microservices or mobile applications where resources are limited.
+5. **Thread-Safe:** Built with thread safety for concurrent environments.
+
+---
+
+## **Conclusion**
+
+`KCache` is a powerful yet lightweight caching library for small-scale use cases. With its TTL-based expiration, LRU eviction, and support for asynchronous operations, it offers developers a focused and efficient caching tool. Whether you're building a microservice, caching configuration settings, or optimizing local data access, `KCache` is a great fit for your needs.

@@ -1,222 +1,164 @@
 package com.gtech.client
 
-import kotlinx.coroutines.*
-import java.util.concurrent.ConcurrentHashMap
-
 /**
- * A thread-safe, high-performance in-memory cache that supports expiration, eviction, and asynchronous access.
- * Implements the Least Recently Used (LRU) eviction policy and periodic cleanup for expired cache items.
- *
- * @param ttlMillis Time-to-live (TTL) for cache entries. Entries older than this value will be considered expired.
- * @param maxSize Maximum number of items the cache can hold before evicting the least recently used (LRU) item.
- * @param cleanupIntervalMillis Interval for periodic cleanup of expired items (in milliseconds).
- * @param enableAutoCleanup Flag to enable or disable the automatic periodic cleanup.
- * @param logger Optional callback for debugging cache status.
- * @param evictionCallback Optional callback for eviction notifications.
+ * A Cache interface that allows storing and retrieving key-value pairs.
+ * Supports both synchronous and asynchronous operations, along with automatic cleanup, debugging, and custom configurations.
  */
-class KCache<K, V>(
-    private val ttlMillis: Long = 60000L,                   // Default TTL: 60 seconds
-    private val maxSize: Int = 100,                         // Default max size of the cache
-    private val cleanupIntervalMillis: Long = 10000L,       // Default cleanup interval: 10 seconds
-    private val enableAutoCleanup: Boolean = true,          // Flag to enable/disable auto cleanup
-    private val logger: ((String) -> Unit)? = null,         // Optional debug callback
-    private val evictionCallback: ((K, V) -> Unit)? = null  // Optional eviction callback
-) {
-
-    private val cache = ConcurrentHashMap<K, CacheItem<V>>()
-    private val cleanupJob: Job? = if (enableAutoCleanup) {
-        CoroutineScope(Dispatchers.Default).launch {
-            periodicCleanup()
-        }
-    } else null
-
-    // Data class to store the cache item with value, timestamp, and last accessed time
-    private data class CacheItem<V>(
-        val value: V,               // Value stored in the cache
-        val timestamp: Long,        // Time when the item was added to the cache
-        var lastAccessed: Long      // Time of the last access to the cache item
-    )
-
-    init {
-        logger?.invoke("Cache initialized with TTL: $ttlMillis, Max Size: $maxSize")
-    }
+interface KCache<K, V> {
 
     /**
-     * Puts an item into the cache asynchronously. This operation does not block the caller.
+     * Synchronously adds a key-value pair to the cache.
      *
-     * @param key The key to associate with the cache item.
-     * @param value The value to be stored in the cache.
+     * @param key The key to store in the cache.
+     * @param value The value to store corresponding to the key.
      */
-    suspend fun putAsync(key: K, value: V) {
-        withContext(Dispatchers.Default) {
-            put(key, value)
-        }
-    }
+    fun put(key: K, value: V)
 
     /**
-     * Puts an item into the cache synchronously. This operation may block the caller if necessary.
+     * Asynchronously adds a key-value pair to the cache.
+     * This is useful for non-blocking operations when adding to the cache.
      *
-     * @param key The key to associate with the cache item.
-     * @param value The value to be stored in the cache.
+     * @param key The key to store in the cache.
+     * @param value The value to store corresponding to the key.
      */
-    fun put(key: K, value: V) {
-        // If the cache size exceeds maxSize, evict the oldest item
-        if (cache.size >= maxSize) {
-            evictOldest()
-        }
-        // Add the item to the cache with a timestamp and the current last accessed time
-        cache[key] = CacheItem(value, System.currentTimeMillis(), System.currentTimeMillis())
-        logger?.invoke("Item added to cache: $key")
-    }
+    suspend fun putAsync(key: K, value: V)
 
     /**
-     * Gets an item from the cache asynchronously. If the item is expired or doesn't exist, returns null.
+     * Synchronously retrieves the value associated with the specified key.
      *
-     * @param key The key of the item to retrieve.
-     * @return The cached value or null if not found or expired.
+     * @param key The key for which to retrieve the associated value.
+     * @return The value corresponding to the key, or `null` if not found.
      */
-    suspend fun getAsync(key: K): V? {
-        return withContext(Dispatchers.Default) {
-            get(key)
-        }
-    }
+    fun get(key: K): V?
 
     /**
-     * Gets an item from the cache. If the item is expired or doesn't exist, removes it and returns null.
+     * Asynchronously retrieves the value associated with the specified key.
+     * This function is ideal for non-blocking calls, especially when interacting with remote sources.
      *
-     * @param key The key of the item to retrieve.
-     * @return The cached value or null if not found or expired.
+     * @param key The key for which to retrieve the associated value.
+     * @return A `suspend` function that returns the value corresponding to the key, or `null` if not found.
      */
-    fun get(key: K): V? {
-        val cacheItem = cache[key]
-        return if (cacheItem != null && !isExpired(cacheItem)) {
-            // Update the last accessed time whenever the item is accessed
-            cacheItem.lastAccessed = System.currentTimeMillis()
-            cacheItem.value
-        } else {
-            // Remove expired or nonexistent item
-            cache.remove(key)
-            null
-        }
-    }
+    suspend fun getAsync(key: K): V?
 
     /**
-     * Removes an item from the cache.
+     * Removes the entry associated with the specified key from the cache.
      *
-     * @param key The key of the item to remove.
+     * @param key The key to be removed.
      */
-    fun remove(key: K) {
-        cache.remove(key)
-        logger?.invoke("Item removed from cache: $key")
-    }
+    fun remove(key: K)
 
     /**
-     * Clears all items from the cache.
+     * Clears all entries in the cache.
+     * This function removes all key-value pairs from the cache.
      */
-    fun clear() {
-        cache.clear()
-        logger?.invoke("Cache cleared.")
-    }
+    fun clear()
 
     /**
-     * Checks if a cache item is expired based on its TTL.
+     * Provides a mechanism for debugging the cache state.
+     * This can be useful for tracking cache hits, misses, and evictions during development.
+     */
+    fun debugCacheUsage()
+
+    /**
+     * Allows custom cache handling with an inline callback function.
+     * The cache will first check if the key exists, and if not, it will execute the callback and cache the result.
      *
-     * @param item The cache item to check for expiration.
-     * @return True if the item is expired, false otherwise.
+     * @param key The key to check in the cache.
+     * @param callback The callback to execute if the key does not exist in the cache.
+     * @return The value retrieved either from the cache or generated by the callback.
      */
-    private fun isExpired(item: CacheItem<V>): Boolean {
-        return System.currentTimeMillis() - item.timestamp > ttlMillis
-    }
+    fun withCache(key: K, callback: () -> V?): V?
 
     /**
-     * Evicts the least recently used (LRU) item from the cache if the cache size exceeds the maximum size.
-     * Triggers the eviction callback after an item is removed.
+     * An asynchronous variant of the `withCache` function.
+     * It checks if the key is present and retrieves the value asynchronously or generates the value using the callback.
+     *
+     * @param key The key to check in the cache.
+     * @param callback The suspendable callback to generate the value if it does not exist.
+     * @return The value retrieved either from the cache or generated asynchronously by the callback.
      */
-    private fun evictOldest() {
-        val oldestKey = cache.minByOrNull { it.value.timestamp }?.key
-        if (oldestKey != null) {
-            val evictedItem = cache.remove(oldestKey)
-            evictedItem?.let {
-                evictionCallback?.invoke(oldestKey, it.value)
-                logger?.invoke("Evicted item: $oldestKey")
-            }
-        }
-    }
+    suspend fun withCacheAsync(key: K, callback: suspend () -> V?): V?
 
     /**
-     * Periodically cleans up expired cache items in the background.
-     * This runs in a coroutine and checks for expired items at the specified interval.
+     * Stops any ongoing cache cleanup tasks.
+     * Useful for manually managing cleanup intervals, or when cache cleanup is no longer necessary.
      */
-    private suspend fun periodicCleanup() {
-        withContext(Dispatchers.Default) {
-            while (isActive) {
-                delay(cleanupIntervalMillis)
-                cleanExpiredItems()
-            }
-        }
-    }
+    fun stopCleanup()
 
     /**
-     * Removes expired cache items.
+     * Builder class for configuring and creating an instance of KCache.
+     * Provides a flexible and readable way to set parameters for the cache.
      */
-    private fun cleanExpiredItems() {
-        val iterator = cache.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (isExpired(entry.value)) {
-                iterator.remove()
-                evictionCallback?.invoke(entry.key, entry.value.value)
-                logger?.invoke("Expired item removed: ${entry.key}")
-            }
-        }
-    }
+    class Builder<K, V> {
+        private var ttlMillis: Long = 60000L // Default TTL of 1 minute
+        private var maxSize: Int = 100 // Default max size of 100 entries
+        private var cleanupIntervalMillis: Long = 10000L // Default cleanup interval of 10 seconds
+        private var enableAutoCleanup: Boolean = true // Enable automatic cleanup by default
+        private var logger: ((String) -> Unit)? = null // Optional logger callback
+        private var evictionCallback: ((K, V) -> Unit)? = null // Optional eviction callback
 
-    /**
-     * Stops the periodic cleanup job.
-     */
-    fun stopCleanup() {
-        cleanupJob?.cancel()
-    }
+        /**
+         * Sets the time-to-live (TTL) for cache entries.
+         *
+         * @param ttl Time-to-live in milliseconds.
+         * @return The Builder instance for method chaining.
+         */
+        fun setTTL(ttl: Long) = apply { this.ttlMillis = ttl }
 
-    /**
-     * Debug method to analyze memory usage and find elements in the cache.
-     */
-    fun debugCacheUsage() {
-        logger?.invoke("Cache Size: ${cache.size}, Max Size: $maxSize")
-        cache.forEach { (key, value) ->
-            logger?.invoke("Key: $key, Last Accessed: ${value.lastAccessed}")
-        }
-    }
+        /**
+         * Sets the maximum size of the cache.
+         *
+         * @param size Maximum number of entries the cache can hold.
+         * @return The Builder instance for method chaining.
+         */
+        fun setMaxSize(size: Int) = apply { this.maxSize = size }
 
-    /**
-     * Builder for KCache to enable flexible configuration.
-     */
-    class CacheBuilder<K, V> {
+        /**
+         * Sets the cleanup interval for periodic cleanup of expired cache entries.
+         *
+         * @param interval Cleanup interval in milliseconds.
+         * @return The Builder instance for method chaining.
+         */
+        fun setCleanupInterval(interval: Long) = apply { this.cleanupIntervalMillis = interval }
 
-        private var ttlMillis: Long = 60000L
-        private var maxSize: Int = 100
-        private var cleanupIntervalMillis: Long = 10000L
-        private var enableAutoCleanup: Boolean = true
-        private var debugCallback: ((String) -> Unit)? = null
-        private var evictionCallback: ((K, V) -> Unit)? = null
+        /**
+         * Enables or disables automatic cleanup.
+         *
+         * @param enabled True to enable, false to disable automatic cleanup.
+         * @return The Builder instance for method chaining.
+         */
+        fun setAutoCleanup(enabled: Boolean) = apply { this.enableAutoCleanup = enabled }
 
-        fun ttlMillis(ttlMillis: Long) = apply { this.ttlMillis = ttlMillis }
-        fun maxSize(maxSize: Int) = apply { this.maxSize = maxSize }
-        fun cleanupIntervalMillis(cleanupIntervalMillis: Long) = apply { this.cleanupIntervalMillis = cleanupIntervalMillis }
-        fun enableAutoCleanup(enableAutoCleanup: Boolean) = apply { this.enableAutoCleanup = enableAutoCleanup }
-        fun debugCallback(debugCallback: (String) -> Unit) = apply { this.debugCallback = debugCallback }
-        fun evictionCallback(evictionCallback: (K, V) -> Unit) = apply { this.evictionCallback = evictionCallback }
+        /**
+         * Sets a custom logger callback for logging cache operations.
+         *
+         * @param logger A callback function for logging.
+         * @return The Builder instance for method chaining.
+         */
+        fun setLogger(logger: ((String) -> Unit)?) = apply { this.logger = logger }
 
-        fun build(): KCache<K, V> {
-            return KCache(
-                ttlMillis,
-                maxSize,
-                cleanupIntervalMillis,
-                enableAutoCleanup,
-                debugCallback,
-                evictionCallback
+        /**
+         * Sets a custom eviction callback for handling evictions.
+         *
+         * @param callback A callback invoked on eviction.
+         * @return The Builder instance for method chaining.
+         */
+        fun setEvictionCallback(callback: ((K, V) -> Unit)?) = apply { this.evictionCallback = callback }
+
+        /**
+         * Builds and returns a configured instance of KCache.
+         *
+         * @return An instance of KCache.
+         */
+        fun inMemoryCacheBuilder(): KCache<K, V> {
+            return InMemoryCache(
+                ttlMillis = ttlMillis,
+                maxSize = maxSize,
+                cleanupIntervalMillis = cleanupIntervalMillis,
+                enableAutoCleanup = enableAutoCleanup,
+                logger = logger,
+                evictionCallback = evictionCallback
             )
         }
     }
-
 }
