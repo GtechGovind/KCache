@@ -150,7 +150,7 @@ interface KCache<K, V> {
          *
          * @return An instance of KCache.
          */
-        fun inMemoryCacheBuilder(): KCache<K, V> {
+        fun buildInMemoryCache(): KCache<K, V> {
             return InMemoryCache(
                 ttlMillis = ttlMillis,
                 maxSize = maxSize,
